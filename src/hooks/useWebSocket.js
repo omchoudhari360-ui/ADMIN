@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
  * Handles real-time communication with the Tourist Safety server
  */
 
-export const useWebSocket = (url = 'ws://localhost:8080') => {
+export const useWebSocket = (url = import.meta.env.VITE_WEBSOCKET_SERVER_URL || 'ws://localhost:8080') => {
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState(null);
   const [error, setError] = useState(null);
