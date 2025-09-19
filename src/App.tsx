@@ -6,6 +6,14 @@ import Login from './components/auth/Login';
 import TouristHome from './pages/TouristHome';
 import AdminDashboard from './pages/AdminDashboard';
 import TouristProfile from './pages/TouristProfile';
+import TouristTripPlanning from './pages/TouristTripPlanning';
+import TouristSOS from './pages/TouristSOS';
+import TouristReport from './pages/TouristReport';
+import TouristTracking from './pages/TouristTracking';
+import AdminUsers from './pages/AdminUsers';
+import AdminIncidents from './pages/AdminIncidents';
+import AdminReports from './pages/AdminReports';
+import AdminSettings from './pages/AdminSettings';
 
 /**
  * Main App Component
@@ -36,48 +44,25 @@ function App() {
             
             <Route path="/trip" element={
               <TouristRoute>
-                <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                  <div className="text-center">
-                    <h1 className="text-2xl font-bold text-gray-900 mb-2">Trip Planning</h1>
-                    <p className="text-gray-600">Trip planning features coming soon...</p>
-                  </div>
-                </div>
+                <TouristTripPlanning />
               </TouristRoute>
             } />
             
             <Route path="/sos" element={
               <TouristRoute>
-                <div className="min-h-screen bg-red-50 flex items-center justify-center">
-                  <div className="text-center">
-                    <h1 className="text-2xl font-bold text-red-900 mb-2">Emergency SOS</h1>
-                    <p className="text-red-700">Emergency services interface coming soon...</p>
-                    <button className="mt-4 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
-                      Call Emergency Services
-                    </button>
-                  </div>
-                </div>
+                <TouristSOS />
               </TouristRoute>
             } />
             
             <Route path="/report" element={
               <TouristRoute>
-                <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                  <div className="text-center">
-                    <h1 className="text-2xl font-bold text-gray-900 mb-2">Report Incident</h1>
-                    <p className="text-gray-600">Incident reporting system coming soon...</p>
-                  </div>
-                </div>
+                <TouristReport />
               </TouristRoute>
             } />
             
             <Route path="/tracking" element={
               <TouristRoute>
-                <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                  <div className="text-center">
-                    <h1 className="text-2xl font-bold text-gray-900 mb-2">Location Tracking</h1>
-                    <p className="text-gray-600">Real-time tracking features coming soon...</p>
-                  </div>
-                </div>
+                <TouristTracking />
               </TouristRoute>
             } />
             
@@ -90,45 +75,25 @@ function App() {
             
             <Route path="/admin/users" element={
               <AdminRoute>
-                <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-                  <div className="text-center">
-                    <h1 className="text-2xl font-bold text-gray-900 mb-2">User Management</h1>
-                    <p className="text-gray-600">User management interface coming soon...</p>
-                  </div>
-                </div>
+                <AdminUsers />
               </AdminRoute>
             } />
             
             <Route path="/admin/incidents" element={
               <AdminRoute>
-                <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-                  <div className="text-center">
-                    <h1 className="text-2xl font-bold text-gray-900 mb-2">Incident Management</h1>
-                    <p className="text-gray-600">Incident management system coming soon...</p>
-                  </div>
-                </div>
+                <AdminIncidents />
               </AdminRoute>
             } />
             
             <Route path="/admin/reports" element={
               <AdminRoute>
-                <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-                  <div className="text-center">
-                    <h1 className="text-2xl font-bold text-gray-900 mb-2">Reports & Analytics</h1>
-                    <p className="text-gray-600">Reporting dashboard coming soon...</p>
-                  </div>
-                </div>
+                <AdminReports />
               </AdminRoute>
             } />
             
             <Route path="/admin/settings" element={
               <AdminRoute>
-                <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-                  <div className="text-center">
-                    <h1 className="text-2xl font-bold text-gray-900 mb-2">System Settings</h1>
-                    <p className="text-gray-600">Admin settings panel coming soon...</p>
-                  </div>
-                </div>
+                <AdminSettings />
               </AdminRoute>
             } />
 
