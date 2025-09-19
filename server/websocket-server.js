@@ -1,6 +1,6 @@
-const WebSocket = require('ws');
-const http = require('http');
-const { v4: uuidv4 } = require('uuid');
+import { WebSocket, WebSocketServer } from 'ws';
+import http from 'http';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * WebSocket Server for Real-time Tourist Safety System
@@ -11,7 +11,7 @@ class TouristSafetyWebSocketServer {
   constructor(port = 8080) {
     this.port = port;
     this.server = http.createServer();
-    this.wss = new WebSocket.Server({ server: this.server });
+    this.wss = new WebSocketServer({ server: this.server });
     
     // In-memory data store (in production, this would be a database)
     this.data = {
@@ -389,5 +389,3 @@ class TouristSafetyWebSocketServer {
 // Start the server
 const server = new TouristSafetyWebSocketServer(8080);
 server.start();
-
-module.exports = TouristSafetyWebSocketServer;
