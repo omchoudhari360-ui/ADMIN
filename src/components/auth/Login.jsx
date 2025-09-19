@@ -87,7 +87,7 @@ const Login = () => {
       let result;
       
       if (formData.role === 'tourist') {
-        result = authenticateTourist(formData.username, formData.password);
+        result = await authenticateTourist(formData.username, formData.password);
       } else {
         result = authenticateAdmin(formData.username, formData.password);
       }

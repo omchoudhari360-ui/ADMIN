@@ -5,6 +5,7 @@ import ProtectedRoute, { AdminRoute, TouristRoute } from './components/auth/Prot
 import Login from './components/auth/Login';
 import TouristHome from './pages/TouristHome';
 import AdminDashboard from './pages/AdminDashboard';
+import TouristProfile from './pages/TouristProfile';
 
 /**
  * Main App Component
@@ -29,12 +30,7 @@ function App() {
             
             <Route path="/profile" element={
               <TouristRoute>
-                <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                  <div className="text-center">
-                    <h1 className="text-2xl font-bold text-gray-900 mb-2">Profile Page</h1>
-                    <p className="text-gray-600">Tourist profile management coming soon...</p>
-                  </div>
-                </div>
+                <TouristProfile />
               </TouristRoute>
             } />
             
