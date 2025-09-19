@@ -5,6 +5,8 @@ import { Shield, MapPin, AlertTriangle, FileText, Activity, Phone, Calendar, Sta
 import { useAuth } from '../contexts/AuthContext';
 import TouristNavbar from '../components/layout/TouristNavbar';
 import useWebSocket from '../hooks/useWebSocket';
+import { createSOSAlert, createReport, createGeofenceAlert } from '../services/api';
+import BlockchainIdBadge from '../components/common/BlockchainIdBadge';
 
 /**
  * Tourist Home Page
@@ -90,6 +92,78 @@ const TouristHome = () => {
       };
     }
   }, [isConnected, updateLocation]);
+
+  const handleQuickIncident = (type) => {
+    const incidentData = {
+      blockchainId: user?.blockchainId,
+      touristUsername: user?.username,
+      type: type,
+      description: `Quick report: ${type}`,
+      severity: 'Medium',
+      location: 'Current Location'
+    };
+    
+    // Create both WebSocket incident and API report
+    createIncident(incidentData);
+    createReport(incidentData);
+  };
+
+  const handleSOSAlert = async () => {
+    try {
+      const sosData = {
+        blockchainId: user?.blockchainId,
+        touristUsername: user?.username,
+        message: 'Emergency SOS Alert triggered',
+        location: 'Current Location',
+        coordinates: null // Would be actual coordinates in real implementation
+      };
+      
+      await createSOSAlert(sosData);
+      reportActivity('sos_triggered', { urgency: 'critical' });
+      navigate('/sos');
+    } catch (error) {
+      console.error('Error creating SOS alert:', error);
+      navigate('/sos');
+    }
+  };
+
+  const handleGeofenceWarning = async (zoneName, alertType = 'WARNING') => {
+    try {
+      const geofenceData = {
+        blockchainId: user?.blockchainId,
+        touristUsername: user?.username,
+        zoneName,
+        alertType,
+        message: `Entered ${alertType.toLowerCase()} zone: ${zoneName}`,
+        location: 'Current Location',
+        coordinates: null
+      };
+      
+      await createGeofenceAlert(geofenceData);
+    } catch (error) {
+      console.error('Error creating geofence alert:', error);
+    }
+  };
+
+  // Simulate geofence warnings for demo
+  useEffect(() => {
+    const simulateGeofence = () => {
+      const zones = [
+        { name: 'Construction Zone', type: 'WARNING' },
+        { name: 'Restricted Area', type: 'DANGER' },
+        { name: 'Tourist Advisory Zone', type: 'WARNING' }
+      ];
+      
+      if (Math.random() < 0.1) { // 10% chance
+        const zone = zones[Math.floor(Math.random() * zones.length)];
+        handleGeofenceWarning(zone.name, zone.type);
+      }
+    };
+
+    const interval = setInterval(simulateGeofence, 30000); // Every 30 seconds
+    return () => clearInterval(interval);
+  }, [user]);
+
   const quickActions = [
     {
       icon: AlertTriangle,
@@ -98,10 +172,7 @@ const TouristHome = () => {
       color: 'bg-red-500',
       hoverColor: 'hover:bg-red-600',
       path: '/sos',
-      onClick: () => {
-        reportActivity('sos_accessed', { urgency: 'high' });
-        navigate('/sos');
-      }
+      onClick: handleSOSAlert
     },
     {
       icon: MapPin,
@@ -140,15 +211,6 @@ const TouristHome = () => {
       }
     }
   ];
-
-  const handleQuickIncident = (type) => {
-    createIncident({
-      type: type,
-      description: `Quick report: ${type}`,
-      severity: 'Medium',
-      location: 'Current Location'
-    });
-  };
 
   const dismissEmergencyAlert = () => {
     setEmergencyAlert(null);
@@ -196,11 +258,11 @@ const TouristHome = () => {
               <div className="flex items-center space-x-4 text-sm">
                 <div className="flex items-center">
                   <Shield className="w-4 h-4 mr-2" />
-                  <span>Blockchain ID: {user?.blockchainId}</span>
+                  <BlockchainIdBadge blockchainId={user?.blockchainId} size="sm" />
                 </div>
                 <div className="flex items-center">
                   <Calendar className="w-4 h-4 mr-2" />
-                  <span>Member since {new Date(user?.loginTimestamp).toLocaleDateString()}</span>
+                  <span>Member since {user?.registeredAt ? new Date(user.registeredAt).toLocaleDateString() : new Date(user?.loginTimestamp).toLocaleDateString()}</span>
                 </div>
                 <div className="flex items-center">
                   <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-green-300' : 'bg-red-300'}`}></div>
