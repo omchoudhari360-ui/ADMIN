@@ -85,6 +85,11 @@ const AdminDashboard = () => {
 
   // Subscribe to real-time updates
   useEffect(() => {
+    if (!isConnected) {
+      console.log('WebSocket not connected, waiting...');
+      return;
+    }
+
     const unsubscribers = [];
 
     // Auth success - initial data load
@@ -167,7 +172,9 @@ const AdminDashboard = () => {
 
   // Update connection status based on WebSocket state
   useEffect(() => {
-    setConnectionStatus(isConnected ? 'connected' : 'disconnected');
+    const status = isConnected ? 'connected' : 'disconnected';
+    console.log('Admin dashboard connection status:', status);
+    setConnectionStatus(status);
   }, [isConnected]);
 
   const stats = [

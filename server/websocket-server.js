@@ -37,11 +37,12 @@ class TouristSafetyWebSocketServer {
 
   setupWebSocketHandlers() {
     this.wss.on('connection', (ws, request) => {
-      console.log('New WebSocket connection established');
+      console.log('New WebSocket connection established from:', request.headers.origin);
       
       ws.on('message', (message) => {
         try {
           const data = JSON.parse(message);
+          console.log('Received message:', data.type, 'from client');
           this.handleMessage(ws, data);
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);
@@ -88,11 +89,13 @@ class TouristSafetyWebSocketServer {
 
   handleAuth(ws, data) {
     const { role, userId, username } = data;
+    console.log(`Authentication request: ${role} user ${username} (${userId})`);
     
     if (role === 'admin') {
       this.clients.admins.add(ws);
       ws.role = 'admin';
       ws.userId = userId;
+      console.log(`Admin ${username} authenticated successfully`);
       
       // Send initial admin data
       ws.send(JSON.stringify({
@@ -110,6 +113,7 @@ class TouristSafetyWebSocketServer {
       ws.role = 'tourist';
       ws.userId = userId;
       ws.username = username;
+      console.log(`Tourist ${username} authenticated successfully`);
       
       // Add tourist to active list
       this.data.tourists.set(userId, {
@@ -129,6 +133,12 @@ class TouristSafetyWebSocketServer {
       ws.send(JSON.stringify({
         type: 'auth_success',
         role: 'tourist'
+      }));
+    } else {
+      console.error('Invalid role in auth request:', role);
+      ws.send(JSON.stringify({
+        type: 'auth_error',
+        message: 'Invalid role specified'
       }));
     }
   }

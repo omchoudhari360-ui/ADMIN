@@ -10,34 +10,44 @@ export const useWebSocket = (url = import.meta.env.VITE_WEBSOCKET_SERVER_URL || 
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState(null);
   const [error, setError] = useState(null);
+  const [connectionAttempts, setConnectionAttempts] = useState(0);
   const { user, role } = useAuth();
   const ws = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const messageHandlers = useRef(new Map());
 
   const connect = useCallback(() => {
+    // Don't attempt connection if we don't have user data
+    if (!user || !role) {
+      console.log('Waiting for user authentication before connecting to WebSocket');
+      return;
+    }
+
     try {
+      console.log(`Attempting WebSocket connection as ${role}:`, url);
       ws.current = new WebSocket(url);
       
       ws.current.onopen = () => {
         console.log('WebSocket connected');
         setIsConnected(true);
         setError(null);
+        setConnectionAttempts(0);
         
         // Authenticate with server
-        if (user && role) {
-          ws.current.send(JSON.stringify({
-            type: 'auth',
-            role: role,
-            userId: user.blockchainId || user.username,
-            username: user.username
-          }));
-        }
+        const authMessage = {
+          type: 'auth',
+          role: role,
+          userId: user.blockchainId || user.username,
+          username: user.username
+        };
+        console.log('Sending auth message:', authMessage);
+        ws.current.send(JSON.stringify(authMessage));
       };
 
       ws.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log('Received WebSocket message:', data.type, data);
           setLastMessage(data);
           
           // Call registered handlers
@@ -54,19 +64,24 @@ export const useWebSocket = (url = import.meta.env.VITE_WEBSOCKET_SERVER_URL || 
         console.log('WebSocket disconnected');
         setIsConnected(false);
         
-        // Attempt to reconnect after 3 seconds
-        reconnectTimeoutRef.current = setTimeout(() => {
-          connect();
-        }, 3000);
+        // Attempt to reconnect with exponential backoff
+        if (connectionAttempts < 5) {
+          const delay = Math.min(1000 * Math.pow(2, connectionAttempts), 10000);
+          console.log(`Reconnecting in ${delay}ms (attempt ${connectionAttempts + 1})`);
+          reconnectTimeoutRef.current = setTimeout(() => {
+            setConnectionAttempts(prev => prev + 1);
+            connect();
+          }, delay);
+        }
       };
 
       ws.current.onerror = (error) => {
         console.error('WebSocket error:', error);
-        setError('Connection error occurred');
+        setError(`Connection error: ${error.message || 'Unknown error'}`);
       };
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
-      setError('Failed to connect to server');
+      setError(`Failed to connect to server: ${error.message}`);
     }
   }, [url, user, role]);
 
@@ -158,14 +173,17 @@ export const useWebSocket = (url = import.meta.env.VITE_WEBSOCKET_SERVER_URL || 
 
   // Initialize connection
   useEffect(() => {
-    if (user && role) {
-      connect();
-    }
+    // Add a small delay to ensure user data is fully loaded
+    const timer = setTimeout(() => {
+      if (user && role) {
+        connect();
+      }
+    }, 1000);
     
     return () => {
+      clearTimeout(timer);
       disconnect();
     };
-  }, [user, role, connect, disconnect]);
 
   // Cleanup on unmount
   useEffect(() => {

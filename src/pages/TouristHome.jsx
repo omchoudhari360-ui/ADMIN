@@ -30,6 +30,11 @@ const TouristHome = () => {
 
   // Subscribe to real-time updates
   useEffect(() => {
+    if (!isConnected) {
+      console.log('WebSocket not connected, waiting...');
+      return;
+    }
+
     const unsubscribers = [];
 
     // System alerts
