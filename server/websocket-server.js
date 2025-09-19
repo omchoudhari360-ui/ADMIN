@@ -380,7 +380,7 @@ class TouristSafetyWebSocketServer {
   }
 
   start() {
-    this.server.listen(this.port, () => {
+    this.server.listen(this.port, '0.0.0.0', () => {
       console.log(`Tourist Safety WebSocket Server running on port ${this.port}`);
     });
   }
