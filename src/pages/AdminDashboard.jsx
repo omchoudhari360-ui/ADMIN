@@ -1,5 +1,5 @@
 import React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { BarChart3, Users, AlertTriangle, FileText, Shield, TrendingUp, Clock, MapPin } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import AdminNavbar from '../components/layout/AdminNavbar';
@@ -7,6 +7,9 @@ import useWebSocket from '../hooks/useWebSocket';
 import RealTimeIncidents from '../components/admin/RealTimeIncidents';
 import LiveTouristMonitor from '../components/admin/LiveTouristMonitor';
 import SystemAlerts from '../components/admin/SystemAlerts';
+import TouristDetailsModal from '../components/common/TouristDetailsModal';
+import BlockchainIdBadge from '../components/common/BlockchainIdBadge';
+import { fetchTourists, fetchSOSAlerts, fetchReports, fetchGeofenceAlerts } from '../services/api';
 
 /**
  * Admin Dashboard Page
@@ -36,6 +39,49 @@ const AdminDashboard = () => {
   });
 
   const [connectionStatus, setConnectionStatus] = useState('connecting');
+  const [selectedTouristId, setSelectedTouristId] = useState(null);
+  const [showTouristModal, setShowTouristModal] = useState(false);
+  const [dashboardData, setDashboardData] = useState({
+    tourists: [],
+    sosAlerts: [],
+    reports: [],
+    geofenceAlerts: []
+  });
+
+  // Fetch initial dashboard data
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      const [touristsResult, sosResult, reportsResult, geofenceResult] = await Promise.all([
+        fetchTourists(),
+        fetchSOSAlerts(),
+        fetchReports(),
+        fetchGeofenceAlerts()
+      ]);
+
+      setDashboardData({
+        tourists: touristsResult.success ? touristsResult.data : [],
+        sosAlerts: sosResult.success ? sosResult.data : [],
+        reports: reportsResult.success ? reportsResult.data : [],
+        geofenceAlerts: geofenceResult.success ? geofenceResult.data : []
+      });
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  const handleTouristClick = (blockchainId) => {
+    setSelectedTouristId(blockchainId);
+    setShowTouristModal(true);
+  };
+
+  const handleCloseTouristModal = () => {
+    setShowTouristModal(false);
+    setSelectedTouristId(null);
+  };
 
   // Subscribe to real-time updates
   useEffect(() => {
@@ -128,7 +174,7 @@ const AdminDashboard = () => {
     {
       icon: Users,
       title: 'Active Users',
-      value: realTimeData.stats.activeTourists.toString(),
+      value: (realTimeData.stats.activeTourists || dashboardData.tourists.length).toString(),
       change: '+12%',
       changeType: 'increase',
       color: 'bg-blue-500'
@@ -136,15 +182,18 @@ const AdminDashboard = () => {
     {
       icon: AlertTriangle,
       title: 'Active Incidents',
-      value: realTimeData.stats.activeIncidents.toString(),
-      change: realTimeData.stats.activeIncidents > 10 ? '+15%' : '-5%',
-      changeType: realTimeData.stats.activeIncidents > 10 ? 'increase' : 'decrease',
+      value: (realTimeData.stats.activeIncidents || dashboardData.sosAlerts.filter(s => s.status === 'active').length).toString(),
+      change: (realTimeData.stats.activeIncidents || dashboardData.sosAlerts.filter(s => s.status === 'active').length) > 10 ? '+15%' : '-5%',
+      changeType: (realTimeData.stats.activeIncidents || dashboardData.sosAlerts.filter(s => s.status === 'active').length) > 10 ? 'increase' : 'decrease',
       color: 'bg-red-500'
     },
     {
       icon: FileText,
       title: 'Reports Today',
-      value: realTimeData.stats.reportsToday.toString(),
+      value: (realTimeData.stats.reportsToday || dashboardData.reports.filter(r => {
+        const today = new Date().toDateString();
+        return new Date(r.timestamp).toDateString() === today;
+      }).length).toString(),
       change: '+8%',
       changeType: 'increase',
       color: 'bg-yellow-500'
@@ -217,8 +266,9 @@ const AdminDashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           {/* Recent Incidents */}
           <RealTimeIncidents 
-            incidents={realTimeData.incidents.slice(0, 5)}
+            incidents={[...realTimeData.incidents, ...dashboardData.sosAlerts].slice(0, 5)}
             onUpdateIncident={handleIncidentUpdate}
+            onTouristClick={handleTouristClick}
           />
 
           {/* System Alerts */}
@@ -231,7 +281,121 @@ const AdminDashboard = () => {
 
         {/* Live Tourist Monitor */}
         <div className="mb-8">
-          <LiveTouristMonitor tourists={realTimeData.tourists} />
+          <LiveTouristMonitor 
+            tourists={[...realTimeData.tourists, ...dashboardData.tourists]}
+            onTouristClick={handleTouristClick}
+          />
+        </div>
+
+        {/* Recent Activity Summary */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+          {/* SOS Alerts */}
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Recent SOS Alerts</h3>
+              <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">
+                {dashboardData.sosAlerts.filter(s => s.status === 'active').length} Active
+              </span>
+            </div>
+            <div className="space-y-3 max-h-64 overflow-y-auto">
+              {dashboardData.sosAlerts.slice(0, 5).map((alert) => (
+                <div key={alert.id} className="p-3 bg-red-50 rounded-lg border border-red-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-red-900">{alert.type}</span>
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      alert.status === 'active' ? 'bg-red-200 text-red-800' : 'bg-gray-200 text-gray-800'
+                    }`}>
+                      {alert.status?.toUpperCase()}
+                    </span>
+                  </div>
+                  <p className="text-sm text-red-700 mb-2">{alert.message}</p>
+                  <div className="flex items-center justify-between">
+                    <BlockchainIdBadge 
+                      blockchainId={alert.blockchainId}
+                      size="sm"
+                      className="cursor-pointer"
+                      onClick={() => handleTouristClick(alert.blockchainId)}
+                    />
+                    <span className="text-xs text-red-600">
+                      {new Date(alert.timestamp).toLocaleTimeString()}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Reports */}
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Recent Reports</h3>
+              <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
+                {dashboardData.reports.filter(r => r.status === 'pending').length} Pending
+              </span>
+            </div>
+            <div className="space-y-3 max-h-64 overflow-y-auto">
+              {dashboardData.reports.slice(0, 5).map((report) => (
+                <div key={report.id} className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-yellow-900">{report.category}</span>
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      report.status === 'pending' ? 'bg-yellow-200 text-yellow-800' : 'bg-gray-200 text-gray-800'
+                    }`}>
+                      {report.status?.toUpperCase()}
+                    </span>
+                  </div>
+                  <p className="text-sm text-yellow-700 mb-2">{report.title}</p>
+                  <div className="flex items-center justify-between">
+                    <BlockchainIdBadge 
+                      blockchainId={report.blockchainId}
+                      size="sm"
+                      className="cursor-pointer"
+                      onClick={() => handleTouristClick(report.blockchainId)}
+                    />
+                    <span className="text-xs text-yellow-600">
+                      {new Date(report.timestamp).toLocaleTimeString()}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Geofence Alerts */}
+          <div className="bg-white rounded-xl shadow-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Geofence Alerts</h3>
+              <span className="px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-full">
+                {dashboardData.geofenceAlerts.filter(g => g.status === 'active').length} Active
+              </span>
+            </div>
+            <div className="space-y-3 max-h-64 overflow-y-auto">
+              {dashboardData.geofenceAlerts.slice(0, 5).map((alert) => (
+                <div key={alert.id} className="p-3 bg-orange-50 rounded-lg border border-orange-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-orange-900">{alert.zoneName}</span>
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      alert.alertType === 'DANGER' ? 'bg-red-200 text-red-800' : 'bg-orange-200 text-orange-800'
+                    }`}>
+                      {alert.alertType}
+                    </span>
+                  </div>
+                  <p className="text-sm text-orange-700 mb-2">{alert.message}</p>
+                  <div className="flex items-center justify-between">
+                    <BlockchainIdBadge 
+                      blockchainId={alert.blockchainId}
+                      size="sm"
+                      className="cursor-pointer"
+                      onClick={() => handleTouristClick(alert.blockchainId)}
+                    />
+                    <span className="text-xs text-orange-600">
+                      {new Date(alert.timestamp).toLocaleTimeString()}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Quick Actions */}
@@ -256,6 +420,13 @@ const AdminDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Tourist Details Modal */}
+      <TouristDetailsModal
+        blockchainId={selectedTouristId}
+        isOpen={showTouristModal}
+        onClose={handleCloseTouristModal}
+      />
     </div>
   );
 };
