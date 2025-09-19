@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:server": "node server/websocket-server.js",
+    "dev:server": "node server/websocket-server.js &",
+    "dev:full": "npm run dev:server && npm run dev",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
