@@ -1,21 +1,134 @@
 import React from 'react';
+import { useState, useEffect } from 'react';
 import { BarChart3, Users, AlertTriangle, FileText, Shield, TrendingUp, Clock, MapPin } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import AdminNavbar from '../components/layout/AdminNavbar';
+import useWebSocket from '../hooks/useWebSocket';
+import RealTimeIncidents from '../components/admin/RealTimeIncidents';
+import LiveTouristMonitor from '../components/admin/LiveTouristMonitor';
+import SystemAlerts from '../components/admin/SystemAlerts';
 
 /**
  * Admin Dashboard Page
- * Main dashboard for administrative users
+ * Main dashboard for administrative users with real-time data
  */
 
 const AdminDashboard = () => {
   const { user } = useAuth();
+  const {
+    isConnected,
+    subscribe,
+    sendAlert,
+    sendEmergencyBroadcast,
+    updateIncident
+  } = useWebSocket();
+
+  const [realTimeData, setRealTimeData] = useState({
+    tourists: [],
+    incidents: [],
+    systemAlerts: [],
+    stats: {
+      activeTourists: 0,
+      activeIncidents: 0,
+      reportsToday: 0,
+      safetyScore: 94
+    }
+  });
+
+  const [connectionStatus, setConnectionStatus] = useState('connecting');
+
+  // Subscribe to real-time updates
+  useEffect(() => {
+    const unsubscribers = [];
+
+    // Auth success - initial data load
+    unsubscribers.push(subscribe('auth_success', (data) => {
+      if (data.role === 'admin' && data.data) {
+        setRealTimeData(data.data);
+        setConnectionStatus('connected');
+      }
+    }));
+
+    // Stats updates
+    unsubscribers.push(subscribe('stats_update', (data) => {
+      setRealTimeData(prev => ({
+        ...prev,
+        stats: data.stats
+      }));
+    }));
+
+    // New incidents
+    unsubscribers.push(subscribe('new_incident', (data) => {
+      setRealTimeData(prev => ({
+        ...prev,
+        incidents: [data.incident, ...prev.incidents]
+      }));
+    }));
+
+    // Incident updates
+    unsubscribers.push(subscribe('incident_updated', (data) => {
+      setRealTimeData(prev => ({
+        ...prev,
+        incidents: prev.incidents.map(incident =>
+          incident.id === data.incident.id ? data.incident : incident
+        )
+      }));
+    }));
+
+    // Tourist activities
+    unsubscribers.push(subscribe('tourist_joined', (data) => {
+      setRealTimeData(prev => ({
+        ...prev,
+        tourists: [...prev.tourists.filter(t => t.id !== data.tourist.id), data.tourist]
+      }));
+    }));
+
+    unsubscribers.push(subscribe('tourist_activity', (data) => {
+      setRealTimeData(prev => ({
+        ...prev,
+        tourists: prev.tourists.map(tourist =>
+          tourist.id === data.touristId
+            ? { ...tourist, lastActivity: { activity: data.activity, details: data.details, timestamp: data.timestamp } }
+            : tourist
+        )
+      }));
+    }));
+
+    // Location updates
+    unsubscribers.push(subscribe('location_update', (data) => {
+      setRealTimeData(prev => ({
+        ...prev,
+        tourists: prev.tourists.map(tourist =>
+          tourist.id === data.touristId
+            ? { ...tourist, location: data.location }
+            : tourist
+        )
+      }));
+    }));
+
+    // System alerts
+    unsubscribers.push(subscribe('system_alert', (data) => {
+      setRealTimeData(prev => ({
+        ...prev,
+        systemAlerts: [data.alert, ...prev.systemAlerts.slice(0, 49)]
+      }));
+    }));
+
+    return () => {
+      unsubscribers.forEach(unsubscribe => unsubscribe());
+    };
+  }, [subscribe]);
+
+  // Update connection status based on WebSocket state
+  useEffect(() => {
+    setConnectionStatus(isConnected ? 'connected' : 'disconnected');
+  }, [isConnected]);
 
   const stats = [
     {
       icon: Users,
       title: 'Active Users',
-      value: '1,234',
+      value: realTimeData.stats.activeTourists.toString(),
       change: '+12%',
       changeType: 'increase',
       color: 'bg-blue-500'
@@ -23,15 +136,15 @@ const AdminDashboard = () => {
     {
       icon: AlertTriangle,
       title: 'Active Incidents',
-      value: '23',
-      change: '-5%',
-      changeType: 'decrease',
+      value: realTimeData.stats.activeIncidents.toString(),
+      change: realTimeData.stats.activeIncidents > 10 ? '+15%' : '-5%',
+      changeType: realTimeData.stats.activeIncidents > 10 ? 'increase' : 'decrease',
       color: 'bg-red-500'
     },
     {
       icon: FileText,
       title: 'Reports Today',
-      value: '87',
+      value: realTimeData.stats.reportsToday.toString(),
       change: '+8%',
       changeType: 'increase',
       color: 'bg-yellow-500'
@@ -39,57 +152,24 @@ const AdminDashboard = () => {
     {
       icon: Shield,
       title: 'Safety Score',
-      value: '94%',
+      value: `${realTimeData.stats.safetyScore}%`,
       change: '+2%',
       changeType: 'increase',
       color: 'bg-green-500'
     }
   ];
 
-  const recentIncidents = [
-    {
-      id: 1,
-      type: 'Medical Emergency',
-      location: 'Downtown Plaza',
-      time: '2 hours ago',
-      status: 'Resolved',
-      severity: 'High'
-    },
-    {
-      id: 2,
-      type: 'Safety Concern',
-      location: 'Tourist District',
-      time: '4 hours ago',
-      status: 'In Progress',
-      severity: 'Medium'
-    },
-    {
-      id: 3,
-      type: 'Lost Tourist',
-      location: 'Central Park',
-      time: '6 hours ago',
-      status: 'Resolved',
-      severity: 'Low'
-    }
-  ];
+  const handleSendAlert = (type, message) => {
+    sendAlert(type, message);
+  };
 
-  const systemAlerts = [
-    {
-      type: 'warning',
-      message: 'High traffic detected in tourist zones',
-      time: '10 minutes ago'
-    },
-    {
-      type: 'info',
-      message: 'System maintenance scheduled for tonight',
-      time: '1 hour ago'
-    },
-    {
-      type: 'success',
-      message: 'Security updates successfully deployed',
-      time: '3 hours ago'
-    }
-  ];
+  const handleEmergencyBroadcast = (message) => {
+    sendEmergencyBroadcast(message);
+  };
+
+  const handleIncidentUpdate = (incidentId, updates) => {
+    updateIncident(incidentId, updates);
+  };
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -97,9 +177,17 @@ const AdminDashboard = () => {
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-8 flex items-center justify-between">
+          <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
           <p className="text-gray-600">Welcome back, {user?.username}. Here's what's happening with tourist safety today.</p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className={`w-3 h-3 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <span className="text-sm text-gray-600">
+              {connectionStatus === 'connected' ? 'Live Data' : 'Disconnected'}
+            </span>
+          </div>
         </div>
 
         {/* Stats Grid */}
@@ -128,81 +216,22 @@ const AdminDashboard = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           {/* Recent Incidents */}
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">Recent Incidents</h2>
-              <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
-                View All
-              </button>
-            </div>
-            <div className="space-y-4">
-              {recentIncidents.map((incident) => (
-                <div key={incident.id} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-medium text-gray-900">{incident.type}</h3>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      incident.status === 'Resolved' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {incident.status}
-                    </span>
-                  </div>
-                  <div className="flex items-center text-sm text-gray-600 space-x-4">
-                    <div className="flex items-center">
-                      <MapPin className="w-4 h-4 mr-1" />
-                      {incident.location}
-                    </div>
-                    <div className="flex items-center">
-                      <Clock className="w-4 h-4 mr-1" />
-                      {incident.time}
-                    </div>
-                    <span className={`px-2 py-1 rounded text-xs ${
-                      incident.severity === 'High' 
-                        ? 'bg-red-100 text-red-700'
-                        : incident.severity === 'Medium'
-                        ? 'bg-yellow-100 text-yellow-700'
-                        : 'bg-green-100 text-green-700'
-                    }`}>
-                      {incident.severity}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <RealTimeIncidents 
+            incidents={realTimeData.incidents.slice(0, 5)}
+            onUpdateIncident={handleIncidentUpdate}
+          />
 
           {/* System Alerts */}
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">System Alerts</h2>
-              <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
-                Manage
-              </button>
-            </div>
-            <div className="space-y-4">
-              {systemAlerts.map((alert, index) => (
-                <div key={index} className={`border-l-4 p-4 rounded ${
-                  alert.type === 'warning' 
-                    ? 'border-yellow-400 bg-yellow-50'
-                    : alert.type === 'info'
-                    ? 'border-blue-400 bg-blue-50'
-                    : 'border-green-400 bg-green-50'
-                }`}>
-                  <p className={`font-medium ${
-                    alert.type === 'warning' 
-                      ? 'text-yellow-800'
-                      : alert.type === 'info'
-                      ? 'text-blue-800'
-                      : 'text-green-800'
-                  }`}>
-                    {alert.message}
-                  </p>
-                  <p className="text-xs text-gray-600 mt-1">{alert.time}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+          <SystemAlerts 
+            alerts={realTimeData.systemAlerts.slice(0, 5)}
+            onSendAlert={handleSendAlert}
+            onEmergencyBroadcast={handleEmergencyBroadcast}
+          />
+        </div>
+
+        {/* Live Tourist Monitor */}
+        <div className="mb-8">
+          <LiveTouristMonitor tourists={realTimeData.tourists} />
         </div>
 
         {/* Quick Actions */}

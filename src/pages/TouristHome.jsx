@@ -1,18 +1,95 @@
 import React from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, MapPin, AlertTriangle, FileText, Activity, Phone, Calendar, Star } from 'lucide-react';
+import { Shield, MapPin, AlertTriangle, FileText, Activity, Phone, Calendar, Star, Bell, Megaphone } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import TouristNavbar from '../components/layout/TouristNavbar';
+import useWebSocket from '../hooks/useWebSocket';
 
 /**
  * Tourist Home Page
- * Dashboard and welcome page for tourist users
+ * Dashboard and welcome page for tourist users with real-time features
  */
 
 const TouristHome = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const {
+    isConnected,
+    subscribe,
+    reportActivity,
+    createIncident,
+    updateLocation
+  } = useWebSocket();
 
+  const [notifications, setNotifications] = useState([]);
+  const [emergencyAlert, setEmergencyAlert] = useState(null);
+  const [recentActivity, setRecentActivity] = useState([]);
+
+  // Subscribe to real-time updates
+  useEffect(() => {
+    const unsubscribers = [];
+
+    // System alerts
+    unsubscribers.push(subscribe('system_alert', (data) => {
+      setNotifications(prev => [data.alert, ...prev.slice(0, 4)]);
+    }));
+
+    // Emergency broadcasts
+    unsubscribers.push(subscribe('emergency_broadcast', (data) => {
+      setEmergencyAlert(data);
+    }));
+
+    // Incident confirmations
+    unsubscribers.push(subscribe('incident_created', (data) => {
+      setRecentActivity(prev => [
+        {
+          type: 'incident_reported',
+          description: `Incident reported: ${data.incident.type}`,
+          timestamp: new Date().toISOString()
+        },
+        ...prev.slice(0, 4)
+      ]);
+    }));
+
+    return () => {
+      unsubscribers.forEach(unsubscribe => unsubscribe());
+    };
+  }, [subscribe]);
+
+  // Report page visit activity
+  useEffect(() => {
+    if (isConnected) {
+      reportActivity('page_visit', { page: 'home' });
+    }
+  }, [isConnected, reportActivity]);
+
+  // Simulate location updates
+  useEffect(() => {
+    if (isConnected && navigator.geolocation) {
+      const watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          updateLocation(
+            position.coords.latitude,
+            position.coords.longitude,
+            position.coords.accuracy
+          );
+        },
+        (error) => {
+          console.log('Geolocation error:', error);
+          // Simulate location for demo
+          const lat = 40.7128 + (Math.random() - 0.5) * 0.01;
+          const lng = -74.0060 + (Math.random() - 0.5) * 0.01;
+          updateLocation(lat, lng, 10);
+        },
+        { enableHighAccuracy: true, maximumAge: 30000, timeout: 27000 }
+      );
+
+      return () => {
+        navigator.geolocation.clearWatch(watchId);
+      };
+    }
+  }, [isConnected, updateLocation]);
   const quickActions = [
     {
       icon: AlertTriangle,
@@ -20,7 +97,11 @@ const TouristHome = () => {
       description: 'Quick access to emergency services',
       color: 'bg-red-500',
       hoverColor: 'hover:bg-red-600',
-      path: '/sos'
+      path: '/sos',
+      onClick: () => {
+        reportActivity('sos_accessed', { urgency: 'high' });
+        navigate('/sos');
+      }
     },
     {
       icon: MapPin,
@@ -28,7 +109,11 @@ const TouristHome = () => {
       description: 'Plan safe travel routes',
       color: 'bg-blue-500',
       hoverColor: 'hover:bg-blue-600',
-      path: '/trip'
+      path: '/trip',
+      onClick: () => {
+        reportActivity('trip_planning', { feature: 'route_planning' });
+        navigate('/trip');
+      }
     },
     {
       icon: FileText,
@@ -36,7 +121,11 @@ const TouristHome = () => {
       description: 'Report safety concerns',
       color: 'bg-yellow-500',
       hoverColor: 'hover:bg-yellow-600',
-      path: '/report'
+      path: '/report',
+      onClick: () => {
+        reportActivity('incident_reporting', { type: 'safety_concern' });
+        navigate('/report');
+      }
     },
     {
       icon: Activity,
@@ -44,10 +133,26 @@ const TouristHome = () => {
       description: 'Real-time location tracking',
       color: 'bg-green-500',
       hoverColor: 'hover:bg-green-600',
-      path: '/tracking'
+      path: '/tracking',
+      onClick: () => {
+        reportActivity('location_tracking', { feature: 'real_time' });
+        navigate('/tracking');
+      }
     }
   ];
 
+  const handleQuickIncident = (type) => {
+    createIncident({
+      type: type,
+      description: `Quick report: ${type}`,
+      severity: 'Medium',
+      location: 'Current Location'
+    });
+  };
+
+  const dismissEmergencyAlert = () => {
+    setEmergencyAlert(null);
+  };
   const safetyTips = [
     'Always keep your emergency contacts updated',
     'Share your location with trusted contacts',
@@ -60,9 +165,30 @@ const TouristHome = () => {
     <div className="min-h-screen bg-gray-50">
       <TouristNavbar />
       
+      {/* Emergency Alert Banner */}
+      {emergencyAlert && (
+        <div className="bg-red-600 text-white p-4">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center">
+              <Megaphone className="w-6 h-6 mr-3" />
+              <div>
+                <p className="font-semibold">EMERGENCY BROADCAST</p>
+                <p>{emergencyAlert.message}</p>
+              </div>
+            </div>
+            <button
+              onClick={dismissEmergencyAlert}
+              className="text-white hover:text-gray-200"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+      
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Header */}
-        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-8 text-white mb-8">
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-8 text-white mb-8 relative">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-3xl font-bold mb-2">Welcome back, {user?.username}!</h1>
@@ -76,6 +202,10 @@ const TouristHome = () => {
                   <Calendar className="w-4 h-4 mr-2" />
                   <span>Member since {new Date(user?.loginTimestamp).toLocaleDateString()}</span>
                 </div>
+                <div className="flex items-center">
+                  <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-green-300' : 'bg-red-300'}`}></div>
+                  <span>{isConnected ? 'Connected' : 'Offline'}</span>
+                </div>
               </div>
             </div>
             <div className="mt-6 md:mt-0">
@@ -84,14 +214,49 @@ const TouristHome = () => {
               </div>
             </div>
           </div>
+          
+          {/* Notifications */}
+          {notifications.length > 0 && (
+            <div className="absolute top-4 right-4">
+              <div className="relative">
+                <Bell className="w-6 h-6 text-white" />
+                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {notifications.length}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* Recent Notifications */}
+        {notifications.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Notifications</h2>
+            <div className="space-y-2">
+              {notifications.slice(0, 3).map((notification, index) => (
+                <div key={notification.id} className={`p-3 rounded-lg border-l-4 ${
+                  notification.type === 'warning' 
+                    ? 'border-yellow-400 bg-yellow-50'
+                    : notification.type === 'error'
+                    ? 'border-red-400 bg-red-50'
+                    : 'border-blue-400 bg-blue-50'
+                }`}>
+                  <p className="text-sm font-medium">{notification.message}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {new Date(notification.timestamp).toLocaleTimeString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Quick Actions Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {quickActions.map((action, index) => (
             <button
               key={index}
-              onClick={() => navigate(action.path)}
+              onClick={action.onClick || (() => navigate(action.path))}
               className={`${action.color} ${action.hoverColor} text-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-200`}
             >
               <action.icon className="w-8 h-8 mb-4" />
@@ -99,6 +264,23 @@ const TouristHome = () => {
               <p className="text-sm opacity-90">{action.description}</p>
             </button>
           ))}
+        </div>
+
+        {/* Quick Incident Reporting */}
+        <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Incident Report</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {['Safety Concern', 'Medical Emergency', 'Lost Tourist', 'Theft Report'].map((type) => (
+              <button
+                key={type}
+                onClick={() => handleQuickIncident(type)}
+                className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left"
+              >
+                <AlertTriangle className="w-5 h-5 text-yellow-500 mb-2" />
+                <p className="text-sm font-medium text-gray-900">{type}</p>
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -147,11 +329,27 @@ const TouristHome = () => {
         {/* Recent Activity */}
         <div className="mt-8 bg-white rounded-xl shadow-sm p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-6">Recent Activity</h2>
-          <div className="text-center py-12 text-gray-500">
-            <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>No recent activity to display.</p>
-            <p className="text-sm">Start using safety features to see your activity here.</p>
-          </div>
+          {recentActivity.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>No recent activity to display.</p>
+              <p className="text-sm">Start using safety features to see your activity here.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {recentActivity.map((activity, index) => (
+                <div key={index} className="flex items-center p-3 bg-gray-50 rounded-lg">
+                  <Activity className="w-5 h-5 text-blue-500 mr-3" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900">{activity.description}</p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(activity.timestamp).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
