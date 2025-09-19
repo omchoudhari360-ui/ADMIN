@@ -184,6 +184,8 @@ export const useWebSocket = (url = import.meta.env.VITE_WEBSOCKET_SERVER_URL || 
       clearTimeout(timer);
       disconnect();
     };
+  }
+  )
 
   // Cleanup on unmount
   useEffect(() => {
